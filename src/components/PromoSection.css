@@ -1,0 +1,67 @@
+
+.promo-section {
+  padding: 0 20px 20px;
+  background: white;
+}
+
+.promo-card {
+  background: linear-gradient(135deg, #00b14f, #7ed321);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.promo-card:hover {
+  transform: translateY(-2px);
+}
+
+.promo-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  min-height: 80px;
+}
+
+.promo-text {
+  flex: 1;
+}
+
+.promo-offer {
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.promo-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.food-image {
+  font-size: 40px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+@media (min-width: 768px) {
+  .promo-section {
+    padding: 0 40px 30px;
+  }
+  
+  .promo-content {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 30px;
+    min-height: 100px;
+  }
+  
+  .promo-offer {
+    font-size: 24px;
+  }
+  
+  .food-image {
+    font-size: 60px;
+  }
+}
