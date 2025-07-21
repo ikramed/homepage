@@ -7,8 +7,11 @@ export default function MapModal({ isOpen, onClose, onLocationSelect }) {
   const [isLoading, setIsLoading] = useState(false)
   const [userLocation, setUserLocation] = useState(null)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
+  const [locationPermission, setLocationPermission] = useState('prompt') // 'prompt', 'granted', 'denied'
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false)
   const mapRef = useRef(null)
   const mapInstanceRef = useRef(null)
+  const userMarkerRef = useRef(null)
 
   const cities = [
     { name: 'Casablanca', lat: 33.5731, lng: -7.5898, zoom: 12 },
@@ -21,12 +24,34 @@ export default function MapModal({ isOpen, onClose, onLocationSelect }) {
     { name: 'Oujda', lat: 34.6867, lng: -1.9114, zoom: 12 }
   ]
 
-  // Initialize map when modal opens
+  // Initialize map and check permissions when modal opens
   useEffect(() => {
     if (isOpen && mapRef.current && !mapInstanceRef.current) {
       initializeMap()
+      checkLocationPermission()
     }
   }, [isOpen])
+
+  const checkLocationPermission = async () => {
+    if (!navigator.geolocation) {
+      setLocationPermission('denied')
+      return
+    }
+
+    try {
+      // Check if permissions API is available
+      if ('permissions' in navigator) {
+        const permission = await navigator.permissions.query({ name: 'geolocation' })
+        setLocationPermission(permission.state)
+        
+        permission.addEventListener('change', () => {
+          setLocationPermission(permission.state)
+        })
+      }
+    } catch (error) {
+      console.log('Permissions API not supported, will prompt on location request')
+    }
+  }
 
   const initializeMap = () => {
     // Initialize Leaflet map
@@ -139,41 +164,96 @@ export default function MapModal({ isOpen, onClose, onLocationSelect }) {
       return
     }
 
+    // Show permission dialog if needed
+    if (locationPermission === 'prompt') {
+      setShowPermissionDialog(true)
+      return
+    }
+
+    if (locationPermission === 'denied') {
+      alert('Location access is denied. Please enable location permissions in your browser settings and try again.')
+      return
+    }
+
     setIsGettingLocation(true)
+    
+    // Try high accuracy first, fallback to lower accuracy if it fails
+    const highAccuracyOptions = {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 30000
+    }
+    
+    const lowAccuracyOptions = {
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: 60000
+    }
     
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        const { latitude, longitude } = position.coords
-        setUserLocation({ lat: latitude, lng: longitude })
+        const { latitude, longitude, accuracy } = position.coords
+        console.log(`Location found with accuracy: ${accuracy}m`)
         
-        // Update map view
+        setUserLocation({ lat: latitude, lng: longitude, accuracy })
+        
+        // Update map view with appropriate zoom based on accuracy
         if (mapInstanceRef.current) {
-          mapInstanceRef.current.setView([latitude, longitude], 15)
+          const zoom = accuracy < 100 ? 17 : accuracy < 500 ? 15 : 13
+          mapInstanceRef.current.setView([latitude, longitude], zoom)
           
-          // Add user location marker
+          // Remove previous user marker if exists
+          if (userMarkerRef.current) {
+            mapInstanceRef.current.removeLayer(userMarkerRef.current)
+          }
+          
+          // Add user location marker with accuracy circle
           const L = window.L
-          L.marker([latitude, longitude])
-            .addTo(mapInstanceRef.current)
-            .bindPopup('Your current location')
-            .openPopup()
+          userMarkerRef.current = L.marker([latitude, longitude], {
+            icon: L.divIcon({
+              className: 'user-location-marker',
+              html: '<div class="user-dot"></div>',
+              iconSize: [20, 20],
+              iconAnchor: [10, 10]
+            })
+          }).addTo(mapInstanceRef.current)
+          
+          // Add accuracy circle
+          L.circle([latitude, longitude], {
+            radius: accuracy,
+            fillColor: '#007AFF',
+            color: '#007AFF',
+            weight: 1,
+            opacity: 0.3,
+            fillOpacity: 0.1
+          }).addTo(mapInstanceRef.current)
+          
+          userMarkerRef.current.bindPopup(`Your current location<br>Accuracy: ${Math.round(accuracy)}m`).openPopup()
         }
         
         setIsLoading(true)
         
         try {
-          // Get address for current location
+          // Get detailed address for current location
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1&zoom=18`
           )
           const data = await response.json()
           
-          const address = data.display_name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
-          const city = data.address?.city || data.address?.town || data.address?.village || 'Current Location'
+          // Build detailed address
+          const addressParts = []
+          if (data.address?.house_number) addressParts.push(data.address.house_number)
+          if (data.address?.road) addressParts.push(data.address.road)
+          if (data.address?.neighbourhood) addressParts.push(data.address.neighbourhood)
+          
+          const detailedAddress = addressParts.length > 0 ? addressParts.join(' ') : data.display_name
+          const city = data.address?.city || data.address?.town || data.address?.village || data.address?.suburb || 'Current Location'
           
           onLocationSelect({
             city: city,
-            address: address,
-            coordinates: { lat: latitude, lng: longitude }
+            address: detailedAddress,
+            coordinates: { lat: latitude, lng: longitude },
+            accuracy: accuracy
           })
           
           setIsLoading(false)
@@ -181,21 +261,90 @@ export default function MapModal({ isOpen, onClose, onLocationSelect }) {
           onClose()
         } catch (error) {
           console.error('Error getting address:', error)
+          // Fallback to coordinates if geocoding fails
+          onLocationSelect({
+            city: 'Current Location',
+            address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+            coordinates: { lat: latitude, lng: longitude },
+            accuracy: accuracy
+          })
           setIsLoading(false)
           setIsGettingLocation(false)
+          onClose()
         }
       },
       (error) => {
-        console.error('Error getting location:', error)
-        alert('Unable to get your location. Please select a city manually.')
+        console.error('High accuracy location error:', error)
         setIsGettingLocation(false)
+        
+        // Handle specific error types
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setLocationPermission('denied')
+            alert('Location access denied. Please enable location permissions and try again.')
+            break
+          case error.POSITION_UNAVAILABLE:
+            alert('Location information is unavailable. Please check your internet connection.')
+            break
+          case error.TIMEOUT:
+            alert('Location request timed out. Please try again or select a location manually.')
+            break
+          default:
+            // Try with lower accuracy as fallback
+            setIsGettingLocation(true)
+            navigator.geolocation.getCurrentPosition(
+              async (position) => {
+                // Same success handler as above but with lower accuracy
+                const { latitude, longitude, accuracy } = position.coords
+                console.log(`Location found with lower accuracy: ${accuracy}m`)
+                setUserLocation({ lat: latitude, lng: longitude, accuracy })
+                
+                if (mapInstanceRef.current) {
+                  mapInstanceRef.current.setView([latitude, longitude], 13)
+                  
+                  if (userMarkerRef.current) {
+                    mapInstanceRef.current.removeLayer(userMarkerRef.current)
+                  }
+                  
+                  const L = window.L
+                  userMarkerRef.current = L.marker([latitude, longitude], {
+                    icon: L.divIcon({
+                      className: 'user-location-marker',
+                      html: '<div class="user-dot"></div>',
+                      iconSize: [20, 20],
+                      iconAnchor: [10, 10]
+                    })
+                  }).addTo(mapInstanceRef.current)
+                  
+                  userMarkerRef.current.bindPopup(`Your approximate location<br>Accuracy: ${Math.round(accuracy)}m`).openPopup()
+                }
+                
+                onLocationSelect({
+                  city: 'Current Location',
+                  address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+                  coordinates: { lat: latitude, lng: longitude },
+                  accuracy: accuracy
+                })
+                
+                setIsGettingLocation(false)
+                onClose()
+              },
+              () => {
+                setIsGettingLocation(false)
+                alert('Unable to get your location. Please select a location manually on the map.')
+              },
+              lowAccuracyOptions
+            )
+            break
+        }
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000
-      }
+      highAccuracyOptions
     )
+  }
+
+  const handlePermissionRequest = () => {
+    setShowPermissionDialog(false)
+    getCurrentLocation()
   }
 
   // Cleanup map when modal closes
@@ -220,27 +369,59 @@ export default function MapModal({ isOpen, onClose, onLocationSelect }) {
         
         <div className="location-actions">
           <button 
-            className="current-location-btn"
+            className={`current-location-btn ${locationPermission === 'denied' ? 'disabled' : ''}`}
             onClick={getCurrentLocation}
-            disabled={isGettingLocation}
+            disabled={isGettingLocation || locationPermission === 'denied'}
           >
             {isGettingLocation ? (
               <>
                 <span className="loading-spinner-small"></span>
-                Getting location...
+                Getting your location...
+              </>
+            ) : locationPermission === 'denied' ? (
+              <>
+                🚫 Location Access Denied
               </>
             ) : (
               <>
-                📍 Use Current Location
+                📍 Use My Current Location
               </>
             )}
           </button>
+          {locationPermission === 'denied' && (
+            <p className="permission-help">
+              Please enable location permissions in your browser settings to use this feature.
+            </p>
+          )}
         </div>
+
+        {showPermissionDialog && (
+          <div className="permission-dialog">
+            <div className="permission-content">
+              <div className="permission-icon">📍</div>
+              <h4>Enable Location Access</h4>
+              <p>We need access to your location to provide accurate delivery services. Your location will only be used to find nearby restaurants and calculate delivery times.</p>
+              <div className="permission-buttons">
+                <button className="permission-btn allow" onClick={handlePermissionRequest}>
+                  Allow Location Access
+                </button>
+                <button className="permission-btn deny" onClick={() => setShowPermissionDialog(false)}>
+                  Not Now
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         <div className="map-container">
           <div ref={mapRef} className="real-map"></div>
           <div className="map-instructions">
-            <p>Tap on the map to select a location or use the buttons below</p>
+            <p>📍 Tap anywhere on the map to pinpoint your exact location</p>
+            {userLocation && (
+              <div className="location-accuracy">
+                <span>Current location accuracy: ~{Math.round(userLocation.accuracy)}m</span>
+              </div>
+            )}
           </div>
         </div>
         
