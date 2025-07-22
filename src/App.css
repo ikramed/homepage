@@ -30,14 +30,14 @@ body {
 
 @media (min-width: 768px) {
   .app {
-    max-width: 100%;
-    box-shadow: none;
+    max-width: 430px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
   }
 }
 
 @media (min-width: 1200px) {
   .app {
-    max-width: 1200px;
+    max-width: 430px;
     margin: 0 auto;
   }
 }
