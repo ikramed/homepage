@@ -1,7 +1,8 @@
 
 .food-categories {
-  padding: 20px;
-  background: #f8f9fa;
+  padding: 0px;
+  background:  rgb(221, 219, 219);
+  
 }
 
 .categories-title {
@@ -15,7 +16,7 @@
 .categories-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  
   max-width: 400px;
   margin: 0 auto;
 }
@@ -27,7 +28,7 @@
   text-align: center;
   cursor: pointer;
   transition: transform 0.2s ease;
-  padding: 8px;
+  padding: 2px;
 }
 
 .food-category-card:hover {
@@ -124,3 +125,4 @@
     grid-template-columns: repeat(4, 1fr);
   }
 }
+ 

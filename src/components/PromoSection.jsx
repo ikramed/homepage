@@ -9,9 +9,7 @@ export default function PromoSection() {
           <div className="promo-text">
             <span className="promo-offer">Spend $30, Save $10</span>
           </div>
-          <div className="promo-image">
-            <div className="food-image">🍔</div>
-          </div>
+          
         </div>
       </div>
     </div>

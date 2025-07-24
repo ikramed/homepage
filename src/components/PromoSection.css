@@ -1,11 +1,12 @@
 
-.promo-section {
-  padding: 0 20px 20px;
-  background: white;
-}
+
 
 .promo-card {
-  background: linear-gradient(135deg, #00b14f, #7ed321);
+  background-image: 
+    
+    url('/download (10).jpeg'); 
+  background-size: cover;
+  background-position: center;
   border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
@@ -29,10 +30,19 @@
 }
 
 .promo-offer {
+  background-color: rgba(18, 168, 86, 0.85); 
   color: white;
-  font-size: 18px;
+  font-size: 13px;
   font-weight: 700;
+  padding: 4px 19px;
+  border-radius: 9px;
+  display: inline-block;
+  margin-left: 10px;
+  margin-bottom: 60px;
+
+
 }
+
 
 .promo-image {
   display: flex;
