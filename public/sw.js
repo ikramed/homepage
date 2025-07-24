@@ -1,11 +1,12 @@
 
 const CACHE_NAME = 'food-delivery-v1'
 const urlsToCache = [
-  '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
-  '/manifest.json'
+  '/homepage/',
+  '/homepage/manifest.json',
+  '/homepage/static/js/bundle.js',
+  '/homepage/static/css/main.css'
 ]
+
 
 self.addEventListener('install', event => {
   event.waitUntil(
